@@ -10,7 +10,7 @@ npm run dev
 
 ## Live Site
 
-https://portfolio.vercel.app
+https://portfolio-steel-mu-92.vercel.app/
 
 ## Contact
 
