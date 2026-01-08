@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MessageSquare, Github, Linkedin, Mail, Menu, X, Send, Bot, User, ExternalLink, Code, Edit2, Save, XCircle, Plus, Trash2, Award, Briefcase, FileText } from 'lucide-react';
+import { MessageSquare, Github, Linkedin, Mail, Menu, X, Send, Bot, User, ExternalLink, Code, Edit2, Save, XCircle, Plus, Trash2, Award, Briefcase, FileText, Brain, TrendingUp, AlertCircle } from 'lucide-react';
 
 // Initial Portfolio Data
 const initialData = {
@@ -103,6 +103,339 @@ const initialData = {
   }
 };
 
+// ML Models Configuration
+const ML_MODELS = [
+  {
+    id: 'housing-price-prediction',
+    name: 'Housing Price Predictor',
+    description: 'Predict house prices using Linear Regression with 5 features',
+    endpoints: {
+      health: '/health',
+      info: '/model_info',
+      predict: '/predict'
+    },
+    inputFields: [
+      { name: 'square_feet', label: 'Square Feet', type: 'number', placeholder: 'e.g., 2000', required: true, min: 500, max: 10000, step: 1 },
+      { name: 'num_bedrooms', label: 'Number of Bedrooms', type: 'number', placeholder: 'e.g., 3', required: true, min: 1, max: 10, step: 1 },
+      { name: 'num_bathrooms', label: 'Number of Bathrooms', type: 'number', placeholder: 'e.g., 2', required: true, min: 1, max: 10, step: 1 },
+      { name: 'year_built', label: 'Year Built', type: 'number', placeholder: 'e.g., 2010', required: true, min: 1900, max: 2026, step: 1 },
+      { name: 'distance_to_city', label: 'Distance to City (miles)', type: 'number', placeholder: 'e.g., 5.5', required: true, min: 0, max: 100, step: 0.1 }
+    ],
+    outputLabel: 'Predicted House Price',
+    sampleValues: {
+      square_feet: 2000,
+      num_bedrooms: 3,
+      num_bathrooms: 2,
+      year_built: 2010,
+      distance_to_city: 5.5
+    }
+  }
+];
+
+// ML Models Testing Panel Component
+const MLModelsPanel = ({ isOpen, onClose }) => {
+  const [selectedModel] = useState(ML_MODELS[0]);
+  const [inputValues, setInputValues] = useState({});
+  const [prediction, setPrediction] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [modelInfo, setModelInfo] = useState(null);
+  const [healthStatus, setHealthStatus] = useState(null);
+
+  useEffect(() => {
+    if (isOpen && selectedModel) {
+      checkHealth();
+      fetchModelInfo();
+    }
+  }, [isOpen, selectedModel]);
+
+  const checkHealth = async () => {
+    try {
+      const response = await fetch('/api/ml-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint: '/health', method: 'GET' })
+      });
+      const data = await response.json();
+      setHealthStatus(data);
+    } catch (err) {
+      setHealthStatus({ status: 'error', message: `Connection failed: ${err.message}` });
+    }
+  };
+
+  const fetchModelInfo = async () => {
+    try {
+      const response = await fetch('/api/ml-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint: '/model_info', method: 'GET' })
+      });
+      const data = await response.json();
+      setModelInfo(data);
+    } catch (err) {
+      console.error('Failed to fetch model info:', err);
+      setModelInfo({ error: 'Unable to fetch model info.' });
+    }
+  };
+
+  const handleInputChange = (fieldName, value) => {
+    setInputValues(prev => ({ ...prev, [fieldName]: value }));
+    setError(null);
+  };
+
+  const handlePredict = async () => {
+    const missingFields = selectedModel.inputFields
+      .filter(field => field.required && !inputValues[field.name])
+      .map(field => field.label);
+
+    if (missingFields.length > 0) {
+      setError(`Please fill in required fields: ${missingFields.join(', ')}`);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setPrediction(null);
+
+    try {
+      const payload = {};
+      selectedModel.inputFields.forEach(field => {
+        if (inputValues[field.name] !== undefined && inputValues[field.name] !== '') {
+          payload[field.name] = parseFloat(inputValues[field.name]);
+        }
+      });
+
+      const response = await fetch('/api/ml-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          endpoint: selectedModel.endpoints.predict,
+          method: 'POST',
+          body: payload
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `API Error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      setPrediction(data);
+    } catch (err) {
+      setError(err.message || 'Failed to get prediction. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReset = () => {
+    setInputValues({});
+    setPrediction(null);
+    setError(null);
+  };
+
+  const loadSampleData = () => {
+    if (selectedModel.sampleValues) {
+      setInputValues(selectedModel.sampleValues);
+      setError(null);
+      setPrediction(null);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto border-2 border-cyan-400/30 shadow-2xl">
+        {/* Header */}
+        <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-cyan-600 p-6 flex justify-between items-center border-b border-cyan-400/30">
+          <div className="flex items-center gap-3">
+            <Brain size={32} className="text-white" />
+            <div>
+              <h2 className="text-2xl font-bold text-white">Test ML Models</h2>
+              <p className="text-cyan-100 text-sm">Interactive Machine Learning Model Testing</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-white hover:bg-white/20 p-2 rounded-lg transition">
+            <X size={28} />
+          </button>
+        </div>
+
+        <div className="p-6">
+          {/* Model Selection */}
+          <div className="mb-6">
+            <label className="block text-cyan-400 font-semibold mb-3">Model:</label>
+            <div className="p-4 rounded-xl border-2 border-cyan-400 bg-cyan-400/10">
+              <div className="flex items-start gap-3">
+                <TrendingUp size={24} className="text-cyan-400 mt-1" />
+                <div>
+                  <h3 className="font-semibold text-white">{selectedModel.name}</h3>
+                  <p className="text-sm text-slate-400 mt-1">{selectedModel.description}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Health Status */}
+          {healthStatus && (
+            <div className={`mb-6 p-4 rounded-xl border-2 ${
+              healthStatus.status === 'healthy' || healthStatus.status === 'ok'
+                ? 'border-green-400/30 bg-green-400/10'
+                : 'border-red-400/30 bg-red-400/10'
+            }`}>
+              <div className="flex items-center gap-2">
+                <AlertCircle size={20} className={healthStatus.status === 'healthy' || healthStatus.status === 'ok' ? 'text-green-400' : 'text-red-400'} />
+                <span className="font-semibold">
+                  Model Status: {healthStatus.status === 'healthy' || healthStatus.status === 'ok' ? '✅ Healthy' : '❌ Unhealthy'}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Model Info */}
+          {modelInfo && !modelInfo.error && (
+            <div className="mb-6 p-4 rounded-xl border-2 border-blue-400/30 bg-blue-400/10">
+              <h3 className="font-semibold text-blue-400 mb-2">Model Information:</h3>
+              <pre className="text-sm text-slate-300 overflow-x-auto">
+                {JSON.stringify(modelInfo, null, 2)}
+              </pre>
+            </div>
+          )}
+
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Input Section */}
+            <div className="bg-slate-800/50 p-6 rounded-xl border border-slate-700">
+              <h3 className="text-xl font-semibold text-cyan-400 mb-4 flex items-center gap-2">
+                <Code size={20} /> Input Parameters
+              </h3>
+              
+              <div className="space-y-4">
+                {selectedModel.inputFields.map(field => (
+                  <div key={field.name}>
+                    <label className="block text-sm text-slate-300 mb-2">
+                      {field.label} {field.required && <span className="text-red-400">*</span>}
+                    </label>
+                    <input
+                      type={field.type}
+                      value={inputValues[field.name] || ''}
+                      onChange={e => handleInputChange(field.name, e.target.value)}
+                      placeholder={field.placeholder}
+                      min={field.min}
+                      max={field.max}
+                      step={field.step}
+                      className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-cyan-400 transition"
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={handlePredict}
+                  disabled={loading}
+                  className="flex-1 bg-gradient-to-r from-blue-500 to-cyan-500 px-6 py-3 rounded-lg font-semibold hover:shadow-lg hover:shadow-cyan-500/50 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {loading ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Predicting...
+                    </>
+                  ) : (
+                    <>
+                      <TrendingUp size={20} /> Predict
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={handleReset}
+                  className="px-6 py-3 rounded-lg border-2 border-slate-600 hover:border-slate-500 transition"
+                >
+                  Reset
+                </button>
+              </div>
+
+              {selectedModel.sampleValues && (
+                <button
+                  onClick={loadSampleData}
+                  className="w-full mt-3 px-4 py-2 rounded-lg border border-amber-500 text-amber-400 hover:bg-amber-500/10 transition text-sm"
+                >
+                  📝 Load Sample Data
+                </button>
+              )}
+
+              {error && (
+                <div className="mt-4 p-4 bg-red-500/20 border-2 border-red-400 rounded-lg">
+                  <p className="text-red-400 text-sm flex items-start gap-2">
+                    <AlertCircle size={18} className="mt-0.5 flex-shrink-0" /> 
+                    <span>{error}</span>
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Output Section */}
+            <div className="bg-slate-800/50 p-6 rounded-xl border border-slate-700">
+              <h3 className="text-xl font-semibold text-cyan-400 mb-4 flex items-center gap-2">
+                <TrendingUp size={20} /> Prediction Result
+              </h3>
+
+              {prediction ? (
+                <div className="space-y-4">
+                  <div className="bg-gradient-to-r from-blue-600/20 to-cyan-600/20 p-6 rounded-xl border-2 border-cyan-400">
+                    <div className="text-center">
+                      <p className="text-sm text-slate-300 mb-2">{selectedModel.outputLabel}</p>
+                      <p className="text-4xl font-bold text-cyan-400">
+                        {typeof prediction === 'object' 
+                          ? (prediction.prediction?.price
+                              ? `$${parseFloat(prediction.prediction.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                              : prediction.predicted_price 
+                                ? `$${parseFloat(prediction.predicted_price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                : 'N/A')
+                          : `$${parseFloat(prediction).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                        }
+                      </p>
+                      {prediction.prediction?.confidence && (
+                        <p className="text-xs text-slate-400 mt-2">Confidence (R²): {(prediction.prediction.confidence * 100).toFixed(2)}%</p>
+                      )}
+                      {prediction.prediction?.model_rmse && (
+                        <p className="text-xs text-slate-400">RMSE: ${parseFloat(prediction.prediction.model_rmse).toLocaleString('en-US', { maximumFractionDigits: 2 })}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700">
+                    <h4 className="text-sm font-semibold text-slate-400 mb-2">Full Response:</h4>
+                    <pre className="text-xs text-slate-300 overflow-x-auto">
+                      {JSON.stringify(prediction, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-64 text-slate-500">
+                  <Brain size={64} className="mb-4 opacity-30" />
+                  <p className="text-center">Enter input parameters and click "Predict" to see results</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Instructions */}
+          <div className="mt-6 p-4 rounded-xl border border-slate-700 bg-slate-800/30">
+            <h4 className="font-semibold text-slate-300 mb-2">📋 Instructions:</h4>
+            <ul className="text-sm text-slate-400 space-y-1 list-disc list-inside">
+              <li>Fill in the required input parameters (marked with *) or use "Load Sample Data"</li>
+              <li>Click "Predict" to get the model's prediction</li>
+              <li>View the prediction result and full API response</li>
+              <li>Click "Reset" to clear inputs and start over</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const Portfolio = () => {
   const [data, setData] = useState(() => {
     const saved = localStorage.getItem('portfolio');
@@ -112,6 +445,7 @@ const Portfolio = () => {
   const [editData, setEditData] = useState(data);
   const [editMode, setEditMode] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [mlModelsOpen, setMlModelsOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
@@ -299,6 +633,9 @@ const Portfolio = () => {
               {['Projects', 'Experience', 'Skills', 'Contact'].map(item => (
                 <a key={item} href={`#${item.toLowerCase()}`} className="hover:text-cyan-400 transition">{item}</a>
               ))}
+              <button onClick={() => setMlModelsOpen(true)} className="hover:text-cyan-400 transition">
+                Test ML Models
+              </button>
               <button onClick={() => { if (isAuthed) setEditMode(!editMode); else setShowLogin(true); }} className="flex items-center gap-2 text-amber-400">
                 <Edit2 size={18} /> {isAuthed ? 'Edit' : 'Admin'}
               </button>
@@ -598,6 +935,9 @@ const Portfolio = () => {
           <MessageSquare size={28} />
         </button>
       )}
+
+      {/* ML Models Testing Panel */}
+      <MLModelsPanel isOpen={mlModelsOpen} onClose={() => setMlModelsOpen(false)} />
 
       {/* Footer */}
       <footer className="bg-slate-900 border-t border-slate-700 py-8 px-4">
