@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MessageSquare, Github, Linkedin, Mail, Menu, X, Send, Bot, User, ExternalLink, Code, Edit2, Save, XCircle, Plus, Trash2, Award, Briefcase, FileText, Brain, TrendingUp, AlertCircle } from 'lucide-react';
+import { MessageSquare, Github, Linkedin, Mail, Menu, X, Send, Bot, User, ExternalLink, Code, Edit2, Save, XCircle, Plus, Trash2, Award, Briefcase, FileText, Brain, TrendingUp, AlertCircle, Copy } from 'lucide-react';
 
 // Initial Portfolio Data
 const initialData = {
@@ -156,10 +156,19 @@ const MLModelsPanel = ({ isOpen, onClose }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ endpoint: '/health', method: 'GET' })
       });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
       const data = await response.json();
       setHealthStatus(data);
     } catch (err) {
-      setHealthStatus({ status: 'error', message: `Connection failed: ${err.message}` });
+      console.error('Health check error:', err);
+      setHealthStatus({ status: 'error', message: `Connection failed: ${err.message}. Retrying...` });
+      
+      // Try again after 2 seconds
+      setTimeout(checkHealth, 2000);
     }
   };
 
@@ -170,10 +179,15 @@ const MLModelsPanel = ({ isOpen, onClose }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ endpoint: '/model_info', method: 'GET' })
       });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
       const data = await response.json();
       setModelInfo(data);
     } catch (err) {
-      console.error('Failed to fetch model info:', err);
+      console.error('Model info error:', err);
       setModelInfo({ error: 'Unable to fetch model info.' });
     }
   };
@@ -215,15 +229,18 @@ const MLModelsPanel = ({ isOpen, onClose }) => {
         })
       });
 
+      console.log('Prediction response status:', response.status);
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `API Error: ${response.status} ${response.statusText}`);
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `HTTP ${response.status} ${response.statusText}`);
       }
 
       const data = await response.json();
       setPrediction(data);
     } catch (err) {
-      setError(err.message || 'Failed to get prediction. Please try again.');
+      console.error('Prediction error:', err);
+      setError(`Failed: ${err.message}. Make sure the API proxy is working.`);
     } finally {
       setLoading(false);
     }
@@ -358,9 +375,9 @@ const MLModelsPanel = ({ isOpen, onClose }) => {
               {selectedModel.sampleValues && (
                 <button
                   onClick={loadSampleData}
-                  className="w-full mt-3 px-4 py-2 rounded-lg border border-amber-500 text-amber-400 hover:bg-amber-500/10 transition text-sm"
+                  className="w-full mt-3 px-4 py-2 rounded-lg border border-amber-500 text-amber-400 hover:bg-amber-500/10 transition text-sm flex items-center justify-center gap-2"
                 >
-                  📝 Load Sample Data
+                  <Copy size={16} /> Load Sample Data
                 </button>
               )}
 
